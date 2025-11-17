@@ -4,3 +4,4 @@ requests
 Werkzeug==2.2.2
 langdetect
 easygoogletranslate
+gunicorn==21.2.0
