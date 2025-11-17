@@ -1,0 +1,19 @@
+help
+set options
+
+# test some explain functions
+explain char *x
+explain int *x(args)
+explain int *x(char *)
+explain int *x(char *, int )
+explain int *x(char *, int, float)
+explain int *x(int )
+explain const int x
+explain int const x
+
+# test explaining some casts
+explain (char *)x
+explain (int (*)())x
+explain (int (*)(char *))x
+explain (int (*)(char *, int))x
+explain (int (*)(char *, int, float))x

@@ -1,0 +1,6 @@
+flask==2.2.3
+google-transliteration-api
+requests
+Werkzeug==2.2.2
+langdetect
+easygoogletranslate
