@@ -1,6 +1,7 @@
 import ast
 import subprocess
 import os
+import re
 from functools import lru_cache
 from flask import Flask, request, render_template, jsonify
 from translation.code_trans import to_Tel
@@ -48,6 +49,62 @@ MISSING_BINARY_ERROR = (
 current_directory: str = os.getcwd()
 
 
+def fallback_explain_c_declaration(query: str) -> str | None:
+    """Convert basic C declaration syntax into cdecl-style English."""
+    cleaned = query.strip().rstrip(";")
+    if not cleaned:
+        return None
+
+    type_pattern = (
+        r"(?:unsigned|signed|long|short|const|volatile|register|static|extern|auto|"
+        r"void|char|int|float|double|struct\s+\w+|union\s+\w+|enum\s+\w+)"
+    )
+    type_expr = rf"(?:{type_pattern})(?:\s+(?:{type_pattern}))*"
+
+    fn_match = re.fullmatch(
+        rf"(?P<type>{type_expr})\s+(?P<name>[A-Za-z_]\w*)\s*\(\s*\)",
+        cleaned,
+    )
+    if fn_match:
+        c_type = " ".join(fn_match.group("type").split())
+        name = fn_match.group("name")
+        return f"declare {name} as function returning {c_type}"
+
+    arr_match = re.fullmatch(
+        rf"(?P<type>{type_expr})\s+(?P<name>[A-Za-z_]\w*)\s*\[\s*(?P<size>\d*)\s*\]",
+        cleaned,
+    )
+    if arr_match:
+        c_type = " ".join(arr_match.group("type").split())
+        name = arr_match.group("name")
+        size = arr_match.group("size")
+        if size:
+            return f"declare {name} as array {size} of {c_type}"
+        return f"declare {name} as array of {c_type}"
+
+    ptr_match = re.fullmatch(
+        rf"(?P<type>{type_expr})\s+(?P<stars>\*+)\s*(?P<name>[A-Za-z_]\w*)",
+        cleaned,
+    )
+    if ptr_match:
+        c_type = " ".join(ptr_match.group("type").split())
+        name = ptr_match.group("name")
+        pointer_depth = len(ptr_match.group("stars"))
+        pointer_expr = " ".join(["pointer to"] * pointer_depth)
+        return f"declare {name} as {pointer_expr} {c_type}"
+
+    var_match = re.fullmatch(
+        rf"(?P<type>{type_expr})\s+(?P<name>[A-Za-z_]\w*)",
+        cleaned,
+    )
+    if var_match:
+        c_type = " ".join(var_match.group("type").split())
+        name = var_match.group("name")
+        return f"declare {name} as {c_type}"
+
+    return None
+
+
 @lru_cache(None)
 def translate(query: str) -> str:
     command = []
@@ -80,6 +137,10 @@ def translate(query: str) -> str:
                         translated_text = to_Tel(line)
                     break
     except OSError:
+        if not lang:
+            fallback = fallback_explain_c_declaration(query)
+            if fallback:
+                return to_Tel(fallback)
         return MISSING_BINARY_ERROR
 
     return translated_text or to_Tel(SYNTAX_ERROR)
