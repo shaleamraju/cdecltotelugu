@@ -131,6 +131,14 @@ def fallback_type_to_telugu(c_type: str) -> str:
 def fallback_translate_c_to_telugu(query: str) -> str | None:
     parsed = fallback_parse_c_declaration(query)
     if not parsed:
+        cdecl = query.strip().rstrip(";")
+        match = re.fullmatch(r"declare\s+(?P<name>[A-Za-z_]\w*)\s+as\s+(?P<desc>.+)", cdecl)
+        if match:
+            name = match.group("name")
+            desc = match.group("desc").strip()
+            cdecl_result = fallback_translate_cdecl_description_to_telugu(name, desc)
+            if cdecl_result:
+                return cdecl_result
         return None
 
     name = str(parsed["name"])
@@ -156,6 +164,40 @@ def fallback_translate_c_to_telugu(query: str) -> str | None:
         return f"ప్రకటించండి {name_tel} ను {c_type_tel} యొక్క శ్రేణిగా"
 
     if kind == "function":
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} ను రిటర్న్ చేసే ఫంక్షన్‌గా"
+
+    return None
+
+
+def fallback_translate_cdecl_description_to_telugu(name: str, desc: str) -> str | None:
+    name_tel = telugu_variable(name)
+
+    type_only = re.fullmatch(r"(?P<type>[A-Za-z_][\w\s]*)", desc)
+    if type_only:
+        c_type_tel = fallback_type_to_telugu(" ".join(type_only.group("type").split()))
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} గా"
+
+    ptr_match = re.fullmatch(r"(?P<prefix>(?:pointer\s+to\s+)+)(?P<type>[A-Za-z_][\w\s]*)", desc)
+    if ptr_match:
+        pointer_depth = ptr_match.group("prefix").count("pointer")
+        c_type_tel = fallback_type_to_telugu(" ".join(ptr_match.group("type").split()))
+        if pointer_depth == 1:
+            pointer_label = "పాయింటర్"
+        else:
+            pointer_label = f"{pointer_depth} స్థాయి పాయింటర్"
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} కి {pointer_label} గా"
+
+    arr_match = re.fullmatch(r"array\s*(?P<size>\d*)\s*of\s+(?P<type>[A-Za-z_][\w\s]*)", desc)
+    if arr_match:
+        size = arr_match.group("size")
+        c_type_tel = fallback_type_to_telugu(" ".join(arr_match.group("type").split()))
+        if size:
+            return f"ప్రకటించండి {name_tel} ను {c_type_tel} యొక్క {size} అంశాల శ్రేణిగా"
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} యొక్క శ్రేణిగా"
+
+    fn_match = re.fullmatch(r"function\s+returning\s+(?P<type>[A-Za-z_][\w\s]*)", desc)
+    if fn_match:
+        c_type_tel = fallback_type_to_telugu(" ".join(fn_match.group("type").split()))
         return f"ప్రకటించండి {name_tel} ను {c_type_tel} ను రిటర్న్ చేసే ఫంక్షన్‌గా"
 
     return None
