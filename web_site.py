@@ -5,6 +5,8 @@ import re
 from functools import lru_cache
 from flask import Flask, request, render_template, jsonify
 from translation.code_trans import to_Tel
+from translation.data.tel_data import data_type
+from translation.translate import variable as telugu_variable
 from langdetect import detect
 from langdetect.lang_detect_exception import LangDetectException
 from easygoogletranslate import EasyGoogleTranslate
@@ -49,8 +51,8 @@ MISSING_BINARY_ERROR = (
 current_directory: str = os.getcwd()
 
 
-def fallback_explain_c_declaration(query: str) -> str | None:
-    """Convert basic C declaration syntax into cdecl-style English."""
+def fallback_parse_c_declaration(query: str) -> dict[str, str | int] | None:
+    """Parse a subset of C declarations for fallback translation."""
     cleaned = query.strip().rstrip(";")
     if not cleaned:
         return None
@@ -66,41 +68,95 @@ def fallback_explain_c_declaration(query: str) -> str | None:
         cleaned,
     )
     if fn_match:
-        c_type = " ".join(fn_match.group("type").split())
-        name = fn_match.group("name")
-        return f"declare {name} as function returning {c_type}"
+        return {
+            "kind": "function",
+            "type": " ".join(fn_match.group("type").split()),
+            "name": fn_match.group("name"),
+        }
 
     arr_match = re.fullmatch(
         rf"(?P<type>{type_expr})\s+(?P<name>[A-Za-z_]\w*)\s*\[\s*(?P<size>\d*)\s*\]",
         cleaned,
     )
     if arr_match:
-        c_type = " ".join(arr_match.group("type").split())
-        name = arr_match.group("name")
-        size = arr_match.group("size")
-        if size:
-            return f"declare {name} as array {size} of {c_type}"
-        return f"declare {name} as array of {c_type}"
+        return {
+            "kind": "array",
+            "type": " ".join(arr_match.group("type").split()),
+            "name": arr_match.group("name"),
+            "size": arr_match.group("size"),
+        }
 
     ptr_match = re.fullmatch(
         rf"(?P<type>{type_expr})\s+(?P<stars>\*+)\s*(?P<name>[A-Za-z_]\w*)",
         cleaned,
     )
     if ptr_match:
-        c_type = " ".join(ptr_match.group("type").split())
-        name = ptr_match.group("name")
-        pointer_depth = len(ptr_match.group("stars"))
-        pointer_expr = " ".join(["pointer to"] * pointer_depth)
-        return f"declare {name} as {pointer_expr} {c_type}"
+        return {
+            "kind": "pointer",
+            "type": " ".join(ptr_match.group("type").split()),
+            "name": ptr_match.group("name"),
+            "pointer_depth": len(ptr_match.group("stars")),
+        }
 
     var_match = re.fullmatch(
         rf"(?P<type>{type_expr})\s+(?P<name>[A-Za-z_]\w*)",
         cleaned,
     )
     if var_match:
-        c_type = " ".join(var_match.group("type").split())
-        name = var_match.group("name")
-        return f"declare {name} as {c_type}"
+        return {
+            "kind": "variable",
+            "type": " ".join(var_match.group("type").split()),
+            "name": var_match.group("name"),
+        }
+
+    return None
+
+
+def fallback_type_to_telugu(c_type: str) -> str:
+    parts = c_type.split()
+    translated: list[str] = []
+    i = 0
+    while i < len(parts):
+        token = parts[i]
+        if token in ("struct", "union", "enum", "class") and i + 1 < len(parts):
+            translated.append(data_type.get(token, token))
+            translated.append(telugu_variable(parts[i + 1]))
+            i += 2
+            continue
+        translated.append(data_type.get(token, token))
+        i += 1
+    return " ".join(translated)
+
+
+def fallback_translate_c_to_telugu(query: str) -> str | None:
+    parsed = fallback_parse_c_declaration(query)
+    if not parsed:
+        return None
+
+    name = str(parsed["name"])
+    name_tel = telugu_variable(name)
+    c_type_tel = fallback_type_to_telugu(str(parsed["type"]))
+    kind = str(parsed["kind"])
+
+    if kind == "variable":
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} గా"
+
+    if kind == "pointer":
+        pointer_depth = int(parsed["pointer_depth"])
+        if pointer_depth == 1:
+            pointer_label = "పాయింటర్"
+        else:
+            pointer_label = f"{pointer_depth} స్థాయి పాయింటర్"
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} కి {pointer_label} గా"
+
+    if kind == "array":
+        size = str(parsed.get("size", ""))
+        if size:
+            return f"ప్రకటించండి {name_tel} ను {c_type_tel} యొక్క {size} అంశాల శ్రేణిగా"
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} యొక్క శ్రేణిగా"
+
+    if kind == "function":
+        return f"ప్రకటించండి {name_tel} ను {c_type_tel} ను రిటర్న్ చేసే ఫంక్షన్‌గా"
 
     return None
 
@@ -138,9 +194,9 @@ def translate(query: str) -> str:
                     break
     except OSError:
         if not lang:
-            fallback = fallback_explain_c_declaration(query)
+            fallback = fallback_translate_c_to_telugu(query)
             if fallback:
-                return to_Tel(fallback)
+                return fallback
         return MISSING_BINARY_ERROR
 
     return translated_text or to_Tel(SYNTAX_ERROR)
