@@ -3,12 +3,17 @@ $(document).ready(function () {
   $("#query").on("input", function () {
     clearTimeout(inputTimeout);
     var query = $(this).val();
-    if (query.length === 0 || query.length >= 3) {
+    if (query.length === 0) {
+      $("#output").text("").hide();
+      $("#spinner").hide();
+      return;
+    }
+    if (query.length >= 3) {
       inputTimeout = setTimeout(function () {
         $("#spinner").show();
         $.ajax({
           data: {
-            query: query || "h",
+            query: query,
           },
           type: "POST",
           url: "/",
@@ -23,7 +28,7 @@ $(document).ready(function () {
   });
 
   $("#sourceCodeButton").on("click", function () {
-    window.location.href = "https://github.com/Raphael-08/Cdecl-telugu";
+    window.location.href = "https://github.com/shaleamraju/cdecltotelugu";
   });
 });
 

@@ -9,7 +9,7 @@ setup(
     description="this a library used to translate cdecl generated English-like phrases to telugu",
     url="https://github.com/Raphael-08/Cdecl-telugu",
     install_requires=[
-        "flask==2.2.3",
+        "flask>=3.1.0",
         "google-transliteration-api",
         "requests"
     ]
