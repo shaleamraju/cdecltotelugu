@@ -188,15 +188,14 @@ def translate(query: str) -> str:
                 if line and line != SYNTAX_ERROR:
                     print(line)
                     if lang:
-                        translated_text = line
+                        translated_text = fallback_translate_c_to_telugu(line) or line
                     else:
                         translated_text = to_Tel(line)
                     break
     except OSError:
-        if not lang:
-            fallback = fallback_translate_c_to_telugu(query)
-            if fallback:
-                return fallback
+        fallback = fallback_translate_c_to_telugu(query)
+        if fallback:
+            return fallback
         return MISSING_BINARY_ERROR
 
     return translated_text or to_Tel(SYNTAX_ERROR)
@@ -233,6 +232,10 @@ def tel_to_code(text):
     if not eng:
         return SYNTAX_ERROR, []
     print(eng)
+
+    # Normalize common transliteration artifacts to C declaration tokens.
+    eng = ["*" if word in ("star", "asterisk") else word for word in eng]
+
     if "a" in eng:
         i = 3
         print(eng[:i],eng[i:])
