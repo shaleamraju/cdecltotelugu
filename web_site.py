@@ -40,6 +40,10 @@ def index():
 
 
 SYNTAX_ERROR = "syntax error"
+MISSING_BINARY_ERROR = (
+    "Translation engine binary not found. Build cdecl-bin-telugu/cdecl-telugu "
+    "and cdecl-bin-code/cdecl first."
+)
 
 current_directory: str = os.getcwd()
 
@@ -61,19 +65,22 @@ def translate(query: str) -> str:
     queries: list[str] = [query, f"explain {query};", f"declare {query};"]
 
     translated_text = None
-    with subprocess.Popen(
-        command, stdin=subprocess.PIPE, stdout=subprocess.PIPE
-    ) as process:
-        output, _ = process.communicate(input="\n".join(queries).encode())
-        for line in output.splitlines():
-            line = line.decode()
-            if line and line != SYNTAX_ERROR:
-                print(line)
-                if lang:
-                    translated_text = line
-                else:
-                    translated_text = to_Tel(line)
-                break
+    try:
+        with subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+        ) as process:
+            output, _ = process.communicate(input="\n".join(queries).encode())
+            for line in output.splitlines():
+                line = line.decode()
+                if line and line != SYNTAX_ERROR:
+                    print(line)
+                    if lang:
+                        translated_text = line
+                    else:
+                        translated_text = to_Tel(line)
+                    break
+    except OSError:
+        return MISSING_BINARY_ERROR
 
     return translated_text or to_Tel(SYNTAX_ERROR)
 

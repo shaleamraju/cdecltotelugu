@@ -18,7 +18,15 @@ $(document).ready(function () {
           type: "POST",
           url: "/",
         }).done(function (data) {
-          $("#output").text(data.output).show();
+          var message = data.output || data.error || "No output";
+          $("#output").text(message).show();
+        }).fail(function (xhr) {
+          var message = "Server error";
+          if (xhr.responseJSON && (xhr.responseJSON.output || xhr.responseJSON.error)) {
+            message = xhr.responseJSON.output || xhr.responseJSON.error;
+          }
+          $("#output").text(message).show();
+        }).always(function () {
           setTimeout(function () {
             $("#spinner").hide();
           }, 100);
